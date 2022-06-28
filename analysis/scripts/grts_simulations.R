@@ -255,7 +255,10 @@ sim_res %>%
   facet_wrap(~ Year,
              scales = "free_y")
 
-
+ggsave(filename = here("analysis/figures",
+                       "Relative_Bias_Newaukum_GRTS.png"),
+       width = 6,
+       height = 6)
 
 sim_res %>%
   mutate(across(Year,
