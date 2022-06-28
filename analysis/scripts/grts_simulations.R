@@ -25,7 +25,7 @@ source(here("grts_functions.R"))
 
 #-----------------------------------------------------------------
 # read in frame
-strm_sf = st_read(here("data/GIS",
+strm_sf = st_read(here("data/raw_data/GIS",
                        "Newaukum_CohoGRTS_SurveyFrame.shp"))
 
 strm_sf %>%
@@ -33,7 +33,7 @@ strm_sf %>%
   geom_sf(color = "blue")
 
 # read in all redds
-redd_sf <- st_read(here("data/GIS",
+redd_sf <- st_read(here("data/raw_data/GIS",
                         "CohoRedds_2019.shp")) %>%
   rename(survey_dat = Date,
          Reach_Name = Reach,
@@ -46,7 +46,7 @@ redd_sf <- st_read(here("data/GIS",
   st_transform(st_crs(strm_sf))
 
 redd_sf %<>%
-  rbind(st_read(here("data/GIS",
+  rbind(st_read(here("data/raw_data/GIS",
                      "CohoRedds_2020.shp")) %>%
           add_column(Year = 2020,
                      .before = 0) %>%
