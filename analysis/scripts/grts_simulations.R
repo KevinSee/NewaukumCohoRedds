@@ -228,7 +228,7 @@ sim_res %>%
   rowwise() %>%
   mutate(in_ci = between(obs, LCB95Pct, UCB95Pct)) %>%
   ungroup() %>%
-  xtabs(~ in_ci, .)
+  janitor::tabyl(in_ci)
 
 sim_res %>%
   mutate(across(Year,
@@ -243,11 +243,42 @@ sim_res %>%
 sim_res %>%
   mutate(across(Year,
                 as_factor)) %>%
+  ggplot(aes(x = sim,
+             y = Estimate,
+             color = Year)) +
+  geom_errorbar(aes(ymin = LCB95Pct,
+                    ymax = UCB95Pct),
+                width = 0) +
+  geom_point() +
+  geom_hline(aes(yintercept = obs),
+             linetype = 2) +
+  facet_wrap(~ Year,
+             scales = "free_y")
+
+
+
+sim_res %>%
+  mutate(across(Year,
+                as_factor)) %>%
   mutate(bias = Estimate - obs,
          rel_bias = bias / obs) %>%
   ggplot(aes(x = Year,
-             y = rel_bias,
+             y = rel_bias * 100,
              fill = Year)) +
   geom_boxplot() +
   geom_hline(yintercept = 0,
-             linetype = 2)
+             linetype = 2) +
+  labs(y = "Relative Bias (%)")
+
+sim_res %>%
+  mutate(across(Year,
+                as_factor)) %>%
+  mutate(bias = Estimate - obs,
+         rel_bias = bias / obs) %>%
+  group_by(Year) %>%
+  summarize(MB = median(bias),
+            MAE = mean(abs(bias), na.rm = T),
+            MAPE = mean(abs(rel_bias) * 100, na.rm = T),
+            MSA = exp(median(abs(log(Estimate/obs)), na.rm = T)) * 100,
+            RMSE = sqrt(mean(bias^2)),
+            .groups = "drop")
