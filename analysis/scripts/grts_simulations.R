@@ -21,11 +21,11 @@ theme_set(theme_bw())
 
 #-----------------------------------------------------------------
 # needed functions
-source(here("grts_functions.R"))
+devtools::load_all()
 
 #-----------------------------------------------------------------
 # read in frame
-strm_sf = st_read(here("data/raw_data/GIS",
+strm_sf = st_read(here("analysis/data/raw_data/GIS",
                        "Newaukum_CohoGRTS_SurveyFrame.shp"))
 
 strm_sf %>%
@@ -33,7 +33,7 @@ strm_sf %>%
   geom_sf(color = "blue")
 
 # read in all redds
-redd_sf <- st_read(here("data/raw_data/GIS",
+redd_sf <- st_read(here("analysis/data/raw_data/GIS",
                         "CohoRedds_2019.shp")) %>%
   rename(survey_dat = Date,
          Reach_Name = Reach,
@@ -46,7 +46,7 @@ redd_sf <- st_read(here("data/raw_data/GIS",
   st_transform(st_crs(strm_sf))
 
 redd_sf %<>%
-  rbind(st_read(here("data/raw_data/GIS",
+  rbind(st_read(here("analysis/data/raw_data/GIS",
                      "CohoRedds_2020.shp")) %>%
           add_column(Year = 2020,
                      .before = 0) %>%
@@ -109,7 +109,7 @@ buff_size = 1
 
 
 # how many simulations should we do?
-n_sim = 5
+n_sim = 50
 
 sim_res = NULL
 set.seed(6)
@@ -128,10 +128,9 @@ for(s in 1:n_sim) {
   cat(paste("Creating GRTS reaches\n\n"))
 
   # generate the reaches around each point
-  grts_rchs = create_grts_reaches(grts_pts,
-                                  strm_sf,
-                                  length_buffer_mi = lngth_req,
-                                  pt_buffer_mi = buff_size)
+  grts_rchs = createGRTSreaches(grts_pts,
+                                strm_sf,
+                                length_buffer_mi = lngth_req)
 
   # remove any overlap between reaches
   grts_rchs %<>%
@@ -214,12 +213,12 @@ for(s in 1:n_sim) {
 
 # save results
 save(sim_res,
-     file = here("data/derived_data",
+     file = here("analysis/data/derived_data",
                  "grts_sims.rda"))
 
 # write to a csv sheet
 write_csv(sim_res,
-          file = here("data/derived_data",
+          file = here("analysis/data/derived_data",
                       "Newaukum_GRTS_sims.csv"))
 
 

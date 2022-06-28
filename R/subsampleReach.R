@@ -8,7 +8,7 @@
 #' @param start_pt `sf` object containing the starting point (e.g. GRTS point) where reach will be built around
 #' @param needed_length distance (in miles) that the reach should extend on one side of the GRTS point.
 #'
-#' @import dplyr units sf lwgeom sfnetworks purrr
+#' @import dplyr units sf lwgeom sfnetworks purrr measurements
 #' @export
 #' @return sf
 #' @examples subsampleReach()
@@ -57,7 +57,7 @@ subsampleReach <- function(rch_sf = NULL,
                                         })) %>%
     arrange(path_length) %>%
     mutate(across(path_length,
-                  conv_unit,
+                  measurements::conv_unit,
                   from = "ft",
                   to = "mi")) %>%
     mutate(keep_seg = if_else(path_length <= needed_length,
@@ -84,7 +84,7 @@ subsampleReach <- function(rch_sf = NULL,
     mutate(across(lngth,
                   as.numeric),
            across(lngth,
-                  units::conv_unit,
+                  measurements::conv_unit,
                   from = "ft",
                   to = "mi")) %>%
     select(lngth,

@@ -13,6 +13,7 @@ Imports:
     dplyr (>= 1.0.8),
     here,
     lwgeom (>= 0.2.8),
+    measurements (>= 1.4.0),
     purrr (>= 0.3.4),
     sf (>= 1.0.6),
     sfnetworks (>= 0.5.5),

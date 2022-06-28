@@ -8,7 +8,7 @@
 #' @param strm_sf `sf` object containing the line layer of the GRTS frame. Should be in a projection with feet as the distant unit, and contain a column `llid` with unique codes for each stream.
 #' @param length_buffer_mi distance (in miles) that the reach should extend on either side of the GRTS point.
 #'
-#' @import dplyr units sf lwgeom
+#' @import dplyr units sf lwgeom measurements
 #' @export
 #' @return sf
 #' @examples createGRTSreaches()
@@ -81,7 +81,7 @@ createGRTSreaches <- function(grts_pts = NULL,
                                  mutate(across(lngth,
                                                as.numeric)) %>%
                                  mutate(across(lngth,
-                                               conv_unit,
+                                               measurements::conv_unit,
                                                from = "ft",
                                                to = "mi")) %>%
                                  mutate(split_num = 1:n()) %>%
@@ -140,7 +140,7 @@ createGRTSreaches <- function(grts_pts = NULL,
            across(rch_lngth_mi,
                   as.numeric),
            across(rch_lngth_mi,
-                  conv_unit,
+                  measurements::conv_unit,
                   from = "ft",
                   to = "mi"))
 
