@@ -53,12 +53,31 @@ redd_sf %<>%
           select(any_of(names(redd_sf))) %>%
           st_transform(st_crs(strm_sf)))
 
-# drop one redd point WAY outside stream layer
-strm_bb <- st_bbox(strm_sf) %>%
-  st_as_sfc()
+redd_2021 <- st_read(here("analysis/data/raw_data/GIS",
+                          "CohoRedds_2021.shp")) %>%
+  add_column(Year = 2021,
+             .before = 0)
+names(redd_2021)[which(names(redd_2021) == "reach")] = "Reach_Name"
+names(redd_2021)[which(names(redd_2021) == "redd_name")] = "sgs_redd_n"
+redd_2021 %<>%
+  select(any_of(names(redd_sf))) %>%
+  st_transform(st_crs(strm_sf))
 
 redd_sf %<>%
-  st_intersection(strm_bb)
+  rbind(redd_2021)
+
+
+# drop a couple redd points WAY outside stream layer
+# strm_bb <- st_bbox(strm_sf) %>%
+#   st_as_sfc()
+#
+# redd_sf %<>%
+#   st_intersection(strm_bb)
+
+strm_buff <- st_buffer(strm_sf,
+                       30)
+redd_sf %<>%
+  st_intersection(strm_buff)
 
 # pull out total number of redds observed each year
 obs_redds <- redd_sf %>%
@@ -89,9 +108,15 @@ sum(st_length(strm_sf)) |>
   measurements::conv_unit("ft", "mi")
 
 # how many points?
-143 * 0.3
+coverage_df <- tibble(perc_cov = seq(.2, .5, by = .1)) %>%
+  mutate(n_miles = 143 * perc_cov) %>%
+  mutate(n_sites = plyr::round_any(n_miles, 5))
+
+# aim for 30% coverage
 n_pts = 45
 
+# loop over different numbers of points
+for(n_pts in c(30, 45, 55, 70)) {
 
 
 #-------------------------------------------
@@ -114,7 +139,7 @@ n_sim = 50
 sim_res = NULL
 set.seed(6)
 for(s in 1:n_sim) {
-  cat(paste("Starting sim", s, "\n"))
+  cat(paste("Starting sim", s, "with", n_pts, "points\n"))
 
   # draw the points
   grts_draw <- grts(strm_sf,
@@ -212,15 +237,26 @@ for(s in 1:n_sim) {
 }
 
 # save results
-save(sim_res,
-     file = here("analysis/data/derived_data",
-                 "grts_sims.rda"))
-
+write_rds(sim_res,
+          file = here("analysis/data/derived_data",
+                      paste0("grts_sims_", n_pts, ".rds")))
 # write to a csv sheet
 write_csv(sim_res,
           file = here("analysis/data/derived_data",
-                      "Newaukum_GRTS_sims.csv"))
+                      paste0("Newaukum_GRTS_sims_", n_pts, ".csv")))
 
+}
+
+# get all simulation results
+sim_res <- coverage_df %>%
+  select(perc_cov,
+         n_sites) %>%
+  mutate(sim_pts = map(n_sites,
+                       .f = function(n_pts) {
+                         read_rds(here("analysis/data/derived_data",
+                                       paste0("grts_sims_", n_pts, ".rds")))
+                       })) %>%
+  unnest(sim_res)
 
 #------------------------------------------
 # some quick analyses on the results
