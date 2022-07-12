@@ -79,7 +79,7 @@ sum(st_length(strm_sf)) |>
 
 # how many points?
 143 * 0.3
-n_pts = 45
+n_pts = 40
 
 #-------------------------------------------
 # draw the points

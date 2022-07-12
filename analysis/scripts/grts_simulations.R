@@ -32,8 +32,7 @@ coho_frame = st_read(here("analysis/data/raw_data/GIS",
 index_frame = st_read(here("analysis/data/raw_data/GIS",
                            "IndexOnlyCohoSurveyFrame.shp"))
 
-strm_sf %>%
-  ggplot() +
+ggplot() +
   geom_sf(data = coho_frame,
           color = "blue") +
   geom_sf(data = index_frame,
@@ -306,6 +305,19 @@ write_csv(sim_res,
 #------------------------------------------------------------
 sim_res <- read_rds(here("analysis/data/derived_data",
                          "grts_sims_all.rds"))
+
+save(strm_sf,
+     redd_sf,
+     obs_redds,
+     sim_res,
+     file = here("analysis/data/derived_data",
+                 "grts_data_sims.rda"))
+
+
+#------------------------------------------------------------
+load(here("analysis/data/derived_data",
+          "grts_data_sims.rda"))
+
 # some quick analyses on the results
 sim_res %>%
   rowwise() %>%
@@ -315,6 +327,7 @@ sim_res %>%
   janitor::adorn_percentages() %>%
   janitor::adorn_pct_formatting()
 
+dw = 0.8
 sim_res %>%
   mutate(ci_width = UCB95Pct - LCB95Pct,
          est_cv = StdError / Estimate) %>%
@@ -330,6 +343,10 @@ sim_res %>%
   scale_fill_viridis_d(name = "% Surveyed") +
   labs(y = "CV of Estimate")
 
+ggsave(filename = here("analysis/figures",
+                       "CV_Newaukum_GRTS.png"),
+       width = 6,
+       height = 6)
 
 
 
@@ -345,7 +362,7 @@ sim_res %>%
   geom_point(aes(y = obs),
              position = position_dodge(dw),
              size = 4) +
-  scale_fill_viridis_d()
+  scale_fill_viridis_d(name = "% Surveyed")
 
 sim_res %>%
   mutate(across(c(Year,
