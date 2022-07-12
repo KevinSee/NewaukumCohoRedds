@@ -1,0 +1,511 @@
+---
+title: "Using a GRTS Design for Spawning Ground Surveys in the Newaukum River"
+subtitle: "Coho Salmon"
+author:
+  - Kevin See:
+      email: Kevin.See@dfw.wa.gov
+      institute: [wdfw]
+      correspondence: true
+  - Lea Ronne:
+      email: Lea.Ronne@dfw.wa.gov
+      institute: [wdfw]
+      correspondence: false
+institute:
+  - wdfw: Washington Department of Fish & Wildlife
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+    wdfwTemplates::wdfw_html_format2:
+      fig_caption: yes
+      fig_height: 4
+      fig_width: 6
+      toc: yes
+      toc_depth: 3
+      toc_float:
+        collapsed: yes
+        smooth_scroll: yes
+      pandoc_args:
+      - --lua-filter=../templates/scholarly-metadata.lua
+      - --lua-filter=../templates/author-info-blocks.lua
+      - --lua-filter=../templates/pagebreak.lua
+    bookdown::pdf_document2:
+      fig_caption: yes
+      fig_height: 5
+      fig_width: 6
+      toc: yes
+      includes:
+        in_header: ../templates/header_WDFW.tex
+      pandoc_args:
+      - --lua-filter=../templates/scholarly-metadata.lua
+      - --lua-filter=../templates/author-info-blocks2.lua
+      - --lua-filter=../templates/pagebreak.lua
+    bookdown::word_document2:
+      fig_caption: yes
+      fig_height: 4
+      fig_width: 6
+      toc: yes
+      reference_docx: "../templates/ReportTemplate.docx" # Insert path for the DOCX file
+      pandoc_args:
+      - --lua-filter=../templates/scholarly-metadata.lua
+      - --lua-filter=../templates/author-info-blocks.lua
+      - --lua-filter=../templates/pagebreak.lua
+bibliography:
+  # - AUC.bib
+  - references.bib
+csl: "../templates/american-fisheries-society.csl" # Insert path for the bib-style
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = FALSE,
+  comment = "#>",
+  fig.path = "../figures/",
+  dpi = 300
+)
+```
+
+```{r packages}
+# load these packages
+library(tidyverse)
+library(lubridate)
+library(magrittr)
+library(sf)
+library(spsurvey)
+library(lwgeom)
+library(measurements)
+library(sfnetworks)
+library(units)
+library(here)
+library(kableExtra)
+
+# load some custom functions
+devtools::load_all()
+
+# set the ggplot2 default theme
+theme_set(theme_bw())
+
+# knitr options
+options(knitr.kable.NA = '-')
+
+# when knitting to Word, use this
+# what kind of document is being created?
+doc.type <- knitr::opts_knit$get('rmarkdown.pandoc.to')
+
+if(doc.type == 'docx') {
+  options(knitr.table.format = "pandoc")
+}
+
+```
+
+```{r read-data}
+# read in frame
+coho_frame = st_read(here("analysis/data/raw_data/GIS",
+                          "Newaukum_CohoGRTS_SurveyFrame.shp"),
+                     quiet = T)
+
+# index areas only
+index_frame = st_read(here("analysis/data/raw_data/GIS",
+                           "IndexOnlyCohoSurveyFrame.shp"),
+                     quiet = T) %>%
+  st_transform(st_crs(coho_frame))
+
+# read in core areas
+core_sf = st_read(here("analysis/data/raw_data/GIS",
+                       "CoreNewaukumCohoSurveys.shp"),
+                     quiet = T) %>%
+  st_transform(st_crs(coho_frame))
+
+# read in non-core areas
+noncore_sf = st_read(here("analysis/data/raw_data/GIS",
+                          "GRTS_NewaukumLayerNoCore.shp"),
+                     quiet = T) %>%
+  st_transform(st_crs(coho_frame))
+
+# clip the core and non-core areas to the index areas
+core_sf %<>%
+  st_intersection(index_frame %>%
+                    st_buffer(10) %>%
+                    select(geometry))
+noncore_sf %<>%
+  st_intersection(index_frame %>%
+                    st_buffer(10) %>%
+                    select(geometry))
+
+
+# load data and simulation results
+load(here("analysis/data/derived_data",
+          "grts_data_sims.rda"))
+
+sim_res_all <- sim_res
+
+load(here("analysis/data/derived_data",
+          "grts_data_core_sims.rda"))
+sim_res_core <- sim_res
+rm(sim_res)
+
+sim_res_tot <- sim_res_core %>%
+  select(-type,
+         -obs) %>%
+  left_join(obs_redds %>%
+              pivot_wider(names_from = type,
+                          values_from = obs)) %>%
+  mutate(across(c(Estimate,
+                  ends_with("95Pct")),
+                ~ . + core)) %>%
+  rename(obs = total)
+
+
+```
+
+
+
+\newpage
+# Goals
+
+To determine the feasibility of shifting from an attempted census survey of the Coho Salmon spawning grounds in the Newaukum River to a **G**eneralized **R**andom-**T**esselation **S**tratified (GRTS) survey design [@Stevens2003; @Stevens2004]. The current census design has proved extremely labor intensive over the last few years. This work could lead to a more feasible study design that allows for some flexibility in the amount of effort deployed.
+
+
+# Methods
+
+## Entire Index Frame
+
+We focused on Coho index areas in the Newaukum. In 2019, 2020 and 2021, WDFW attempted to survey these areas on a weekly basis. By concentrating on the index areas, we ignored the reaches that were only surveyed once, near peak spawning. This removes the extrapolation techniques applied to those non-index reaches from this analysis (Figure \@ref(fig:index-map)). The index areas comprise about 80 miles of stream within the Newaukum.
+
+```{r index-map, fig.cap = "Map of the Newaukum River, showing the entire Coho Salmon spawning area in blue, and the index areas overlaid in red."}
+ggplot() +
+  geom_sf(data = coho_frame,
+          aes(color = "Frame")) +
+  geom_sf(data = index_frame,
+          aes(color = "Index")) +
+  scale_color_brewer(palette = "Set1",
+                     direction = -1,
+                     name = NULL) +
+  theme(axis.text = element_blank(),
+        legend.position = "bottom")
+
+```
+
+The initial design treated the entire index area as the GRTS frame, so points were drawn from this frame. We tested 16, 24, 32 and 40 GRTS sites, corresponding to surveying 20, 30, 40 and 50% of the entire index frame, assuming that each site would be a mile long reach. To construct the actual reaches, we strove to create a half mile buffer upstream and downstream of the GRTS point. If we were not able to extend the reach a half mile in one direction (e.g. hit the upstream extent of the frame, or the downstream end merged with a larger tributary), we extended the reach further in the other direction if possible. The final lengths of all created reaches was recorded.
+
+We created a small (10 ft) buffer around each GRTS reach, and identified the redds from each year that fell within that buffer, and assumed those were the redds counted at that GRTS reach. Using the length of the reach, we converted the number of observed redds into redds / mi. 
+
+We focus on how well estimates of total redds from various GRTS-based designs compare with the observed total number of redds observed in the index areas in each of those three years (Figure \@ref(fig:redd-map)). 
+
+```{r redd-map, fig.cap = "Map of the Newaukum River showing the location of all the redds identified in the index areas in each year. Light blue is the entire Coho spawning grounds, while darker blue indicates the index areas."}
+ggplot() +
+  geom_sf(data = coho_frame,
+          color = "lightblue") +
+  geom_sf(data = strm_sf,
+          color = "blue") +
+  geom_sf(data = redd_sf,
+          aes(color = as.factor(Year))) +
+  scale_color_brewer(palette = "Set1",
+                     name = "Year") +
+  theme(axis.text = element_blank(),
+        legend.position = "bottom") +
+  facet_wrap(~ Year,
+             nrow = 2,
+             ncol = 2)
+```
+
+### Example
+
+Figure \@ref(fig:grts-map) shows some examples of GRTS designs. 
+
+```{r ex-grts-draw, cache=T}
+grts_draw <- sim_res_all %>%
+  filter(Year == 2021) %>%
+  group_by(n_sites) %>%
+  slice(1) %>%
+  select(Year,
+         perc_cov,
+         n_sites,
+         sim,
+         data) %>%
+  mutate(label = paste("n =", n_sites)) %>%
+  mutate(grts_pts = map(data,
+                        .f = function(x) {
+                          x %>%
+                            select(siteID:stratum, geometry) %>% 
+                            st_sf() %>% 
+                            st_join(strm_sf %>%
+                                      st_buffer(10))
+                        }),
+         grts_rch = map(grts_pts,
+                        .f = function(x) {
+                            createGRTSreaches(x,
+                                              strm_sf, 
+                                              0.5) 
+                        }))
+  
+ex_grts_rchs = grts_draw %>%
+  select(-data,
+         -grts_pts) %>%
+  unnest(grts_rch) %>%
+  st_sf()
+ex_grts_pts = grts_draw %>%
+  select(-data,
+         -grts_rch) %>%
+  unnest(grts_pts) %>%
+  st_sf()
+```
+
+```{r grts-map, fig.cap = "Example of a GRTS draw using various number of sites. Dark blue indicates the index areas. Red points are the GRTS points, and the red lines are the subsequent GRTS reaches."}
+ggplot() +
+  geom_sf(data = coho_frame,
+          color = "lightblue") +
+  geom_sf(data = strm_sf,
+          color = "blue") +
+  geom_sf(data = ex_grts_rchs,
+          color = "red") +
+  geom_sf(data = ex_grts_pts,
+          color = "red",
+          size = 2,
+          shape = 1) +
+  facet_wrap(~ label) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+```
+
+```{r obs-dens, fig.cap = "Using the example GRTS draws, these figures show the observed redd densities at those GRTS reaches in 2021."}
+grts_draw %>%
+  select(perc_cov:label) %>%
+  unnest(data) %>%
+  mutate(redd_dens = n_redds/rch_lngth_mi) %>%
+  st_sf() %>%
+  ggplot() +
+  geom_sf(data = coho_frame,
+          color = "lightblue") +
+  geom_sf(data = strm_sf,
+          color = "blue") +
+  geom_sf(aes(color = redd_dens),
+          size = 3) +
+  scale_color_viridis_c(direction = -1, 
+                        # trans = "log",
+                        name = "Redds / Mile",
+                        breaks = scales::pretty_breaks()) +
+  facet_wrap(~ label) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "bottom")
+
+```
+
+## Combination of Core and GRTS Areas
+
+We also examined a design where some reaches were considered "core" areas that would be surveyed in their entirety, and a GRTS design to account for the rest of the index areas (Figure @\ref(fig:core-map)). The core areas were chosen in part because they generally account for around 60% of the observed redds in any given year. The GRTS sites are expanded only to the non-core index areas, while the core area surveys are assumed to count all the redds within those reaches. We can then examine the results for just the non-core or GRTS areas, as well as the total index area (by adding the core area redds). Note that when adding the core area redds, the standard error is given only by the non-core GRTS area. 
+
+We tested several GRTS designs for the non-core areas, including 15, 20, 25 and 30 GRTS reaches which corresponds to surveying approximately 32, 43, 53 and 64% of the non-core areas. 
+
+```{r core-map, fig.cap = "The Coho frame of the Newaukum is shown in light blue. The index area is depicted with a thick gray line, which is overlaid by red or purple, depending on whether that section is core or non-core (GRTS)."}
+ggplot() +
+  geom_sf(data = coho_frame,
+          aes(color = "Coho Frame")) +
+  geom_sf(data = index_frame,
+          aes(color = "Index Areas"),
+          size = 2) +
+  geom_sf(data = core_sf,
+          aes(color = "Core")) +
+  geom_sf(data = noncore_sf,
+          aes(color = "GRTS")) +
+  scale_color_manual(name = "Category",
+                     values = c("Coho Frame" = "lightblue",
+                                "Index Areas" = "gray",
+                                "Core" = "red",
+                                "GRTS" = "purple"))
+
+```
+
+## Observed in Index Areas
+
+Table \@ref(tab:obs-tab) shows how many redds in total were counted within the index reaches in each year.
+
+```{r obs-tab}
+obs_redds %>%
+  rename(Type = type) %>%
+  mutate(across(Year,
+                as.factor),
+         across(Type,
+                str_to_title),
+         across(Type,
+                recode,
+                "Grts" = "GRTS")) %>%
+  pivot_wider(names_from = Year,
+              values_from = obs) %>%
+  kbl(format.args = list(big.mark = ","),
+      caption = "Number of Coho redds observed in the index areas by type and year.") %>%
+  kable_styling()
+```
+
+
+# Results
+
+
+
+```{r rel-bias-all, eval = F}
+sim_res_all %>%
+  mutate(across(c(perc_cov,
+                  Year),
+                as_factor)) %>%
+  mutate(bias = Estimate - obs,
+         rel_bias = bias / obs) %>%
+  ggplot(aes(x = Year,
+             y = rel_bias * 100,
+             fill = perc_cov)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0,
+             linetype = 2) +
+  labs(y = "Relative Bias (%)") +
+  scale_fill_viridis_d(name = "% Surveyed")
+```
+
+```{r cv-fig-all, eval = F}
+# dw = 0.8
+sim_res_all %>%
+  mutate(ci_width = UCB95Pct - LCB95Pct,
+         est_cv = StdError / Estimate) %>%
+  mutate(across(c(Year,
+                  n_sites,
+                  perc_cov),
+                as_factor)) %>%
+  ggplot(aes(x = Year,
+             y = est_cv,
+             fill = perc_cov)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0.15,
+             linetype = 2) +
+  scale_fill_viridis_d(name = "% Surveyed") +
+  labs(y = "CV of Estimate")
+```
+
+```{r}
+comp_df <- sim_res_all %>%
+  select(-c(data:Indicator)) %>%
+  add_column(design = "All",
+             .before = 0) %>%
+  bind_rows(sim_res_core %>%
+              select(-c(data:Indicator),
+                     -type) %>%
+              add_column(design = "Non-Core Only",
+                         .before = 0)) %>%
+  bind_rows(sim_res_tot %>%
+              select(-c(data:Indicator),
+                     -c(core:grts)) %>%
+              add_column(design = "Core + GRTS",
+                         .before = 0)) %>%
+  mutate(across(design,
+                as_factor)) %>%
+  mutate(across(perc_cov,
+                ~ round(., digits = 2) * 100)) %>%
+  mutate(across(c(Year,
+                  perc_cov,
+                  n_sites),
+                as_factor)) %>%
+  mutate(ci_width = UCB95Pct - LCB95Pct,
+         est_cv = StdError / Estimate,
+         bias = Estimate - obs,
+         rel_bias = bias / obs)
+  
+```
+
+
+```{r rel-bias, fig.cap = "Boxplots of relative bias ((estimate - truth) / truth) for each year, colored by the number of GRTS sites or percent of the GRTS frame surveyed, and faceted by type of simulation. All is across entire index frame. Non-Core is focused only on the non-core portions with a GRTS design. Core + GRTS includes the non-core results plus the redds observed in core areas. The dashed line represents zero bias."}
+comp_df %>%
+  ggplot(aes(x = Year,
+             y = rel_bias * 100,
+             fill = perc_cov)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0,
+             linetype = 2) +
+  labs(y = "Relative Bias (%)") +
+  scale_y_continuous(limits = c(-50, 50)) +
+  scale_fill_viridis_d(name = "% Coverage") +
+  facet_wrap(~ design)
+```
+
+```{r cv-fig, fig.cap = "Boxplots showing the spread of the coefficients of variation across all simulations, colored by the number of GRTS sites or percent of the GRTS frame surveyed, and faceted by type of simulation. All is across entire index frame. Non-Core is focused only on the non-core portions with a GRTS design. Core + GRTS includes the non-core results plus the redds observed in core areas. The dashed line represents the standard of a 15% CV."}
+comp_df %>%
+  ggplot(aes(x = Year,
+             y = est_cv,
+             fill = perc_cov)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0.15,
+             linetype = 2) +
+  labs(y = "CV") +
+  scale_fill_viridis_d(name = "% Coverage") +
+  facet_wrap(~ design)
+```
+
+```{r, eval = F}
+sim_res_all %>%
+# sim_res_core %>%
+  select(perc_cov:data) %>%
+  filter(sim %in% c(1:50)) %>%
+  unnest(data) %>%
+  select(-geometry) %>%
+  group_by(Year, n_sites, sim) %>%
+  summarize(across(redd_dens,
+                   list(max = max,
+                        mean = mean,
+                        median = median)),
+            .groups = "drop") %>%
+  left_join(strm_sf %>% 
+              mutate(lngth = st_length(geometry)) %>% 
+              group_by(type) %>% 
+              summarize(across(lngth, sum), 
+                        across(lngth, as.numeric)) %>% 
+              st_drop_geometry() %>% 
+              add_row(type = "total", lngth = sum(.$lngth)) %>% 
+              full_join(obs_redds) %>% 
+              mutate(obs_redd_dens = obs / lngth) %>%
+              filter(type == "total") %>%
+              select(Year, obs_redd_dens)) %>%
+  mutate(grts_gr_obs = if_else(redd_dens_mean > obs_redd_dens,
+                               T, F)) %>%
+  janitor::tabyl(n_sites, grts_gr_obs) %>%
+  janitor::adorn_percentages() %>%
+  janitor::adorn_pct_formatting()
+
+sim_res_core %>%
+  select(perc_cov:data) %>%
+  filter(sim %in% c(1:50)) %>%
+  unnest(data) %>%
+  select(-geometry) %>%
+  group_by(Year, n_sites, sim) %>%
+  summarize(across(redd_dens,
+                   list(max = max,
+                        mean = mean,
+                        median = median)),
+            .groups = "drop") %>%
+  left_join(strm_sf %>% 
+              mutate(lngth = st_length(geometry)) %>% 
+              group_by(type) %>% 
+              summarize(across(lngth, sum), 
+                        across(lngth, as.numeric)) %>% 
+              st_drop_geometry() %>% 
+              add_row(type = "total", lngth = sum(.$lngth)) %>% 
+              full_join(obs_redds) %>% 
+              mutate(obs_redd_dens = obs / lngth) %>%
+              filter(type == "grts") %>%
+              select(Year, obs_redd_dens)) %>%
+  mutate(grts_gr_obs = if_else(redd_dens_mean > obs_redd_dens,
+                               T, F)) %>%
+  janitor::tabyl(n_sites, grts_gr_obs) %>%
+  janitor::adorn_percentages() %>%
+  janitor::adorn_pct_formatting()
+
+```
+
+
+# Discussion Points
+
+* The overall core plus non-core GRTS design produced much more precise estimates (smaller CVs) compared to an overall GRTS design, even if that overall design surveyed half the watershed. The relative bias was similar on average as well, but more consistent (the boxplots have similar means, but the core plus GRTS boxes are smaller). Therefore, of all the simulated options, we recommend a core plus GRTS design, with 
+
+* There was a positive bias in most simulation results, meaning that the estimate was higher than the observed value. This seems to stem from the fact that a majority of the GRTS draws resulted in an mean observed redd density (within the GRTS reaches) that was higher than the overall watershed redd density. This occurred in approximately 70% of the simulations across the entire watershed, and approximately 80% of the non-core simulations, regardless of how many GRTS sites were being simulated. 
+  * If that percentage was close to 50%, presumeably the simulated results would appear unbiased.  
+  * Why the disparity between mean redd density in GRTS reaches and overall redd density? 
+
+# References
