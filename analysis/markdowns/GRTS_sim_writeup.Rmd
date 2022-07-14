@@ -14,6 +14,17 @@ institute:
   - wdfw: Washington Department of Fish & Wildlife
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: 
+    bookdown::pdf_document2:
+      fig_caption: yes
+      fig_height: 5
+      fig_width: 6
+      toc: yes
+      includes:
+        in_header: ../templates/header_WDFW.tex
+      pandoc_args:
+      - --lua-filter=../templates/scholarly-metadata.lua
+      - --lua-filter=../templates/author-info-blocks2.lua
+      - --lua-filter=../templates/pagebreak.lua
     wdfwTemplates::wdfw_html_format2:
       fig_caption: yes
       fig_height: 4
@@ -26,17 +37,6 @@ output:
       pandoc_args:
       - --lua-filter=../templates/scholarly-metadata.lua
       - --lua-filter=../templates/author-info-blocks.lua
-      - --lua-filter=../templates/pagebreak.lua
-    bookdown::pdf_document2:
-      fig_caption: yes
-      fig_height: 5
-      fig_width: 6
-      toc: yes
-      includes:
-        in_header: ../templates/header_WDFW.tex
-      pandoc_args:
-      - --lua-filter=../templates/scholarly-metadata.lua
-      - --lua-filter=../templates/author-info-blocks2.lua
       - --lua-filter=../templates/pagebreak.lua
     bookdown::word_document2:
       fig_caption: yes
@@ -505,7 +505,7 @@ sim_res_core %>%
 * The overall core plus non-core GRTS design produced much more precise estimates (smaller CVs) compared to an overall GRTS design, even if that overall design surveyed half the watershed. The relative bias was similar on average as well, but more consistent (the boxplots have similar means, but the core plus GRTS boxes are smaller). Therefore, of all the simulated options, we recommend a core plus GRTS design, with 
 
 * There was a positive bias in most simulation results, meaning that the estimate was higher than the observed value. This seems to stem from the fact that a majority of the GRTS draws resulted in an mean observed redd density (within the GRTS reaches) that was higher than the overall watershed redd density. This occurred in approximately 70% of the simulations across the entire watershed, and approximately 80% of the non-core simulations, regardless of how many GRTS sites were being simulated. 
-  * If that percentage was close to 50%, presumeably the simulated results would appear unbiased.  
-  * Why the disparity between mean redd density in GRTS reaches and overall redd density? 
+  * If that percentage was close to 50%, presumably the simulated results would appear unbiased.  
+  * Why the disparity between mean redd density in GRTS reaches and overall redd density? Maybe a few high density reaches consistently appear in the GRTS draw, raising the mean redd density within the GRTS sample. This doesn't feel like a satisfactory answer though.
 
 # References
