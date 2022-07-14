@@ -81,6 +81,25 @@ st_write(grts_rchs,
          dsn = here("analysis/data/derived_data",
                     "Newaukum_Coho_NonCore_GRTS_reach_base.gpkg"))
 
+
+# quick plot showing sites
+ggplot() +
+  geom_sf(data = core_sf,
+          aes(color = "Core")) +
+  geom_sf(data = noncore_sf,
+          aes(color = "Non-Core")) +
+  geom_sf(data = grts_rchs,
+          # size = 1,
+          aes(color = 'GRTS')) +
+  geom_sf(data = grts_pts,
+          shape = 1,
+          size = 2,
+          aes(color = "GRTS")) +
+  scale_color_manual(name = "Classificiation",
+                     values = c("Core" = "darkblue",
+                                "Non-Core" = "lightblue",
+                                "GRTS" = "red"))
+
 #-----------------------------------------------------------------
 # if need a replacement point/reach, use this to generate 1 mile reach
 site_id = "Site-26"
